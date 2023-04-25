@@ -1,5 +1,4 @@
 import numpy as np
-import scipy as sp
 import cupy as cp
 from numba import jit, cuda
 from collections import defaultdict
@@ -14,7 +13,7 @@ def genetic_fuzzy_kmodes(data: np.ndarray, num_cluster: int, population_size: in
         
         chromosomes = crossover(chromosomes, data, alpha)
         
-        chromosomes = mutation(chromosomes, data, mutation_prob)
+        chromosomes = mutation(chromosomes, mutation_prob)
 
     rank_index = rank_chromosomes(chromosomes, data, alpha)
     best_chromosome = chromosomes[rank_index][0]
@@ -36,7 +35,7 @@ def rank_chromosomes(chromosomes: np.ndarray, data: np.ndarray, alpha: float):
 def fitness_function(chromosomes: np.ndarray, data: np.ndarray, alpha: float, beta: float):
     rank_index = rank_chromosomes(chromosomes, data, alpha)
 
-    rank = rank_index.argsort() + 1
+    rank = rank_index.argsort()
 
     fitness = beta*(np.power((1 - beta), rank))
 
@@ -58,6 +57,9 @@ def cost_function(cluster_membership: np.ndarray, data: np.ndarray, centroids: n
     return cost
 
 def dissimilarity_measure(X, Y): 
+    '''
+    Matching distance function
+    '''
     
     return np.sum(X!=Y, axis = 0)
 
@@ -90,17 +92,18 @@ def update_cluster_memembership(centroids: np.ndarray, data: np.ndarray, alpha: 
 
     cluster_membership = np.zeros((num_data, num_clusters))
 
-    for i in range(num_data):
-        for j in range(num_clusters):
-            if (data[i] == centroids[j]).all():
-                cluster_membership[i][j] = 1
+    for i in range(num_clusters):
+        for j in range(num_data):
+            if (data[j] == centroids[i]).all():
+                cluster_membership[j][i] = 1
             else:
-                denominator = 0
+                distance_sum = 0
                 for k in range(num_clusters):
-                    denominator += np.power(1 / dissimilarity_measure(data[i], centroids[k]), 1/(alpha-1))
-                    
-                cluster_membership[i][j] = 1 / (np.power(1 / dissimilarity_measure(data[i], centroids[j]), 1/(alpha-1)) / denominator)
-            
+                    distance_sum += np.power(dissimilarity_measure(data[j], centroids[k]), 1/(alpha-1))
+                
+                distance_cluster = dissimilarity_measure(data[j], centroids[i])
+                cluster_membership[j][i] = (np.power(distance_cluster, 1/(alpha-1)) / distance_sum)
+
     return cluster_membership
 
 def initialize_population(population_size: int, num_cluster: int, num_data: int):
@@ -122,12 +125,10 @@ def selection(chromosomes: np.ndarray, data: np.ndarray, alpha: float, beta: flo
         # Random number to pick chromosome
         random = np.random.rand(1)
 
-        for j in range(population_size):
-            # Pick chromosome
-            if random < cum_prob[j]:
-                new_chromosomes[i] = chromosomes[j]
-                break
-            
+        # Find the first chromosome with cum_prob > random
+        index = np.where(cum_prob > random)[0][0]
+        new_chromosomes[i] = chromosomes[index]
+
     return new_chromosomes
 
 def crossover(chromosomes: np.ndarray, data: np.ndarray, alpha: float):
@@ -142,15 +143,17 @@ def crossover(chromosomes: np.ndarray, data: np.ndarray, alpha: float):
 
     return new_chromosomes
 
-
-def mutation(chromosomes: np.ndarray, data: np.ndarray, mutate_prob: float):
+def mutation(chromosomes: np.ndarray, mutate_prob: float):
     population_size, num_data, num_clusters = chromosomes.shape
 
     for i in range(population_size):
-        for j in range(num_data):
-            random = np.random.rand(1)
-            if random < mutate_prob:
-                new_chromosomes = np.random.rand(num_clusters)
-                chromosomes[i][j] = new_chromosomes / np.sum(new_chromosomes, axis=0, keepdims=True)
+        random = np.random.rand(num_data)
+
+        mutation_condition = random < mutate_prob
+        num_mutations = np.count_nonzero(mutation_condition)
+        
+        new_chromosomes = np.random.rand(num_mutations, num_clusters)
+        new_chromosomes = new_chromosomes / np.sum(new_chromosomes, axis=1, keepdims=True)
+        chromosomes[i][mutation_condition] = new_chromosomes
 
     return chromosomes
