@@ -4,21 +4,24 @@ import cupy as cp
 from numba import jit, cuda
 from collections import defaultdict
 
-def genetic_fuzzy_kmodes(data: np.ndarray, num_cluster: int, population_size: int, alpha: float = 2, beta: float = 0.5):
+def genetic_fuzzy_kmodes(data: np.ndarray, num_cluster: int, population_size: int, alpha: float = 2, beta: float = 0.5, mutation_prob: float = 0.1, max_iter: int = 100):
     np.random.seed(0)
 
-    chromosomes = initialize_population(population_size, num_cluster, data.shape[0])
-    
-    chromosomes = selection(chromosomes, data, alpha, beta)
-    
-    chromosomes = crossover(chromosomes, data, alpha)
-    
-    # mutation()
+    for i in range(max_iter):
+        chromosomes = initialize_population(population_size, num_cluster, data.shape[0])
+        
+        chromosomes = selection(chromosomes, data, alpha, beta)
+        
+        chromosomes = crossover(chromosomes, data, alpha)
+        
+        chromosomes = mutation(chromosomes, data, mutation_prob)
 
+    rank_index = rank_chromosomes(chromosomes, data, alpha)
+    best_chromosome = chromosomes[rank_index][0]
 
-    return
+    return best_chromosome
 
-def fitness_function(chromosomes: np.ndarray, data: np.ndarray, alpha: float, beta: float):
+def rank_chromosomes(chromosomes: np.ndarray, data: np.ndarray, alpha: float):
     population_size = chromosomes.shape[0]
 
     cost = np.zeros(population_size)
@@ -26,7 +29,14 @@ def fitness_function(chromosomes: np.ndarray, data: np.ndarray, alpha: float, be
         centroids = calculate_centroids(chromosomes[i], data, alpha)
         cost[i] = cost_function(chromosomes[i], data, centroids, alpha)
 
-    rank = cost.argsort().argsort() + 1
+    rank_index = cost.argsort()
+
+    return rank_index
+
+def fitness_function(chromosomes: np.ndarray, data: np.ndarray, alpha: float, beta: float):
+    rank_index = rank_chromosomes(chromosomes, data, alpha)
+
+    rank = rank_index.argsort() + 1
 
     fitness = beta*(np.power((1 - beta), rank))
 
@@ -75,7 +85,7 @@ def calculate_centroids(cluster_membership: np.ndarray, data: np.ndarray, alpha:
     return centroids
 
 def update_cluster_memembership(centroids: np.ndarray, data: np.ndarray, alpha: float):
-    num_data, num_features = data.shape
+    num_data = data.shape[0]
     num_clusters = centroids.shape[0]
 
     cluster_membership = np.zeros((num_data, num_clusters))
@@ -89,7 +99,7 @@ def update_cluster_memembership(centroids: np.ndarray, data: np.ndarray, alpha: 
                 for k in range(num_clusters):
                     denominator += np.power(1 / dissimilarity_measure(data[i], centroids[k]), 1/(alpha-1))
                     
-                cluster_membership[i][j] = 1/ (np.power(1 / dissimilarity_measure(data[i], centroids[j]), 1/(alpha-1)) / denominator)
+                cluster_membership[i][j] = 1 / (np.power(1 / dissimilarity_measure(data[i], centroids[j]), 1/(alpha-1)) / denominator)
             
     return cluster_membership
 
@@ -133,6 +143,14 @@ def crossover(chromosomes: np.ndarray, data: np.ndarray, alpha: float):
     return new_chromosomes
 
 
-def mutation():
+def mutation(chromosomes: np.ndarray, data: np.ndarray, mutate_prob: float):
+    population_size, num_data, num_clusters = chromosomes.shape
 
-    return
+    for i in range(population_size):
+        for j in range(num_data):
+            random = np.random.rand(1)
+            if random < mutate_prob:
+                new_chromosomes = np.random.rand(num_clusters)
+                chromosomes[i][j] = new_chromosomes / np.sum(new_chromosomes, axis=0, keepdims=True)
+
+    return chromosomes

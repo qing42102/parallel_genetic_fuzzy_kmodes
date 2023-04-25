@@ -19,4 +19,5 @@ if __name__ == "__main__":
     soy_data = load_data("../data/soy_data.npy")
     soy_target = load_data("../data/soy_target.npy")
     
-    genetic_fuzzy_kmodes(soy_data, 4, 5)
+    best_chromosome = genetic_fuzzy_kmodes(soy_data, 4, 5)
+    print(best_chromosome)
