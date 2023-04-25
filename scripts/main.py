@@ -1,7 +1,6 @@
 import numpy as np
 from genetic_fuzzy_kmodes import genetic_fuzzy_kmodes
 import os
-from sklearn.datasets import load_iris
 
 def load_data(file_path: str):
     data = np.load(file_path)
@@ -14,9 +13,10 @@ if __name__ == "__main__":
     dname = os.path.dirname(abspath)
     os.chdir(dname)
 
-    # data = load_data("../data/data.npy")
+    # data = load_data("../data/metacritic_data.npy")
     # target = load_data("../data/metascore.npy")
 
-    (data, target) = load_iris(return_X_y=True)
+    soy_data = load_data("../data/soy_data.npy")
+    soy_target = load_data("../data/soy_target.npy")
     
-    genetic_fuzzy_kmodes(data, 3, 5)
+    genetic_fuzzy_kmodes(soy_data, 4, 5)
