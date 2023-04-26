@@ -34,7 +34,7 @@ def run_genetic_fuzzy_kmodes(
         max_iter=max_iter,
     )
     print(best_chromosome)
-    print("Time", time.time() - start_time)
+    print("Total time:", time.time() - start_time)
 
     cluster = np.argmax(best_chromosome, axis=1)
     rand_score = metrics.adjusted_rand_score(target, cluster)
