@@ -3,6 +3,7 @@ from genetic_fuzzy_kmodes import genetic_fuzzy_kmodes
 import os
 from sklearn import metrics
 import time
+import cupy as cp
 
 
 def load_data(file_path: str):
@@ -36,6 +37,7 @@ def run_genetic_fuzzy_kmodes(
     print(best_chromosome)
     print("Total time:", time.time() - start_time)
 
+    best_chromosome = cp.asnumpy(best_chromosome)
     cluster = np.argmax(best_chromosome, axis=1)
     rand_score = metrics.adjusted_rand_score(target, cluster)
     print(rand_score)
