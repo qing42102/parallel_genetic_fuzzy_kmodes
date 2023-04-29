@@ -21,12 +21,14 @@ def genetic_fuzzy_kmodes(
 
     data = cp.asarray(data)
 
+    chromosomes = initialize_population(population_size, num_cluster, data.shape[0])
+
     for i in range(max_iter):
         start = time.time()
 
-        chromosomes = initialize_population(population_size, num_cluster, data.shape[0])
+        fitness = fitness_function(chromosomes, data, alpha, beta)
 
-        chromosomes = selection(chromosomes, data, alpha, beta)
+        chromosomes = selection(chromosomes, fitness)
 
         chromosomes = crossover(chromosomes, data, alpha)
 
@@ -111,7 +113,7 @@ def calculate_centroids(cluster_membership: cp.ndarray, data: cp.ndarray, alpha:
     num_clusters = cluster_membership.shape[1]
     num_features = data.shape[1]
 
-    centroids = cp.zeros((num_clusters, num_features))
+    centroids = cp.zeros((num_clusters, num_features), dtype=int)
 
     cluster_membership = cp.power(cluster_membership, alpha)
 
@@ -122,8 +124,6 @@ def calculate_centroids(cluster_membership: cp.ndarray, data: cp.ndarray, alpha:
 
             # The index of the maximum value is the best category for that feature in the centroid
             centroids[i][j] = cp.argmax(weighted_count)
-
-    centroids = centroids.astype(int)
 
     return centroids
 
@@ -170,13 +170,12 @@ def initialize_population(population_size: int, num_cluster: int, num_data: int)
     return chromosomes
 
 
-def selection(chromosomes: cp.ndarray, data: cp.ndarray, alpha: float, beta: float):
+def selection(chromosomes: cp.ndarray, fitness: cp.ndarray):
     """
     Selection of a new same-sized population of chromosomes
     Select from the current population based on the cumulative fitness
     """
     population_size = chromosomes.shape[0]
-    fitness = fitness_function(chromosomes, data, alpha, beta)
 
     cum_prob = cp.cumsum(fitness)
     cum_prob = cum_prob / cum_prob[-1]
@@ -223,11 +222,12 @@ def mutation(chromosomes: cp.ndarray, mutate_prob: float):
         mutation_condition = random < mutate_prob
         num_mutations = int(cp.count_nonzero(mutation_condition))
 
-        # Generate new random values for the mutated chromosomes
-        new_chromosomes = cp.random.rand(num_mutations, num_clusters)
-        new_chromosomes = new_chromosomes / cp.sum(
-            new_chromosomes, axis=1, keepdims=True
-        )
-        chromosomes[i][mutation_condition] = new_chromosomes
+        if num_mutations > 0:
+            # Generate new random values for the mutated chromosomes
+            new_chromosomes = cp.random.rand(num_mutations, num_clusters)
+            new_chromosomes = new_chromosomes / cp.sum(
+                new_chromosomes, axis=1, keepdims=True
+            )
+            chromosomes[i][mutation_condition] = new_chromosomes
 
     return chromosomes

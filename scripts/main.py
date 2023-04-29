@@ -23,7 +23,6 @@ def run_genetic_fuzzy_kmodes(
     mutation_prob: float,
     max_iter: int,
 ):
-
     start_time = time.time()
     best_chromosome = genetic_fuzzy_kmodes(
         data,
@@ -55,7 +54,7 @@ if __name__ == "__main__":
         soy_data,
         soy_target,
         num_cluster=4,
-        population_size=20,
+        population_size=24,
         alpha=1.2,
         beta=0.1,
         mutation_prob=0.01,
@@ -69,7 +68,7 @@ if __name__ == "__main__":
         metacritic_data,
         metacritic_target,
         num_cluster=7,
-        population_size=50,
+        population_size=24,
         alpha=1.2,
         beta=0.1,
         mutation_prob=0.01,
