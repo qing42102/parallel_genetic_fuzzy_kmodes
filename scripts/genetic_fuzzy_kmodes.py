@@ -1,7 +1,7 @@
 import numpy as np
 import cupy as cp
-from numba import njit, cuda
 import time
+from mpi4py import MPI
 
 
 def genetic_fuzzy_kmodes(
@@ -19,26 +19,46 @@ def genetic_fuzzy_kmodes(
     np.random.seed(0)
     cp.random.seed(0)
 
+    comm = MPI.COMM_WORLD
+    comm_size = comm.Get_size()
+    rank = comm.Get_rank()
+
+    num_GPU = cp.cuda.runtime.getDeviceCount()
+
+    # Set GPU device for each MPI process
+    cp.cuda.runtime.setDevice(int(rank / (comm_size / num_GPU)))
+
     data = cp.asarray(data)
 
+    chromosomes = initialize_population(population_size, num_cluster, data.shape[0])
+
     for i in range(max_iter):
-        start = time.time()
+        if rank == 0:
+            start = time.time()
 
-        chromosomes = initialize_population(population_size, num_cluster, data.shape[0])
+            fitness = fitness_function(chromosomes, data, alpha, beta)
 
-        fitness = fitness_function(chromosomes, data, alpha, beta)
+            chromosomes = selection(chromosomes, fitness)
 
-        chromosomes = selection(chromosomes, fitness)
+        block_size = int(population_size / comm_size)
+        block_chromosomes = cp.empty((block_size, data.shape[0], num_cluster))
+        comm.Scatterv(chromosomes, block_chromosomes, root=0)
 
-        chromosomes = crossover(chromosomes, data, alpha)
+        block_chromosomes = crossover(block_chromosomes, data, alpha)
 
-        chromosomes = mutation(chromosomes, mutation_prob)
+        block_chromosomes = mutation(block_chromosomes, mutation_prob)
 
-        print("Iteration", i, "time: ", time.time() - start)
+        comm.Gatherv(block_chromosomes, chromosomes, root=0)
 
-    # Find the best chromosome in the last generation
-    rank_index = rank_chromosomes(chromosomes, data, alpha)
-    best_chromosome = chromosomes[rank_index][0]
+        if rank == 0:
+            print("Iteration", i, "time: ", time.time() - start)
+
+    if rank == 0:
+        # Find the best chromosome in the last generation
+        rank_index = rank_chromosomes(chromosomes, data, alpha)
+        best_chromosome = chromosomes[rank_index][0]
+    else:
+        best_chromosome = None
 
     return best_chromosome
 
@@ -222,11 +242,12 @@ def mutation(chromosomes: cp.ndarray, mutate_prob: float):
         mutation_condition = random < mutate_prob
         num_mutations = int(cp.count_nonzero(mutation_condition))
 
-        # Generate new random values for the mutated chromosomes
-        new_chromosomes = cp.random.rand(num_mutations, num_clusters)
-        new_chromosomes = new_chromosomes / cp.sum(
-            new_chromosomes, axis=1, keepdims=True
-        )
-        chromosomes[i][mutation_condition] = new_chromosomes
+        if num_mutations > 0:
+            # Generate new random values for the mutated chromosomes
+            new_chromosomes = cp.random.rand(num_mutations, num_clusters)
+            new_chromosomes = new_chromosomes / cp.sum(
+                new_chromosomes, axis=1, keepdims=True
+            )
+            chromosomes[i][mutation_condition] = new_chromosomes
 
     return chromosomes

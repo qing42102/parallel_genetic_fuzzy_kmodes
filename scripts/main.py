@@ -4,11 +4,16 @@ import os
 from sklearn import metrics
 import time
 import cupy as cp
+from mpi4py import MPI
 
 
 def load_data(file_path: str):
+    comm = MPI.COMM_WORLD
+    rank = comm.Get_rank()
+
     data = np.load(file_path)
-    print(data.shape)
+    if rank == 0:
+        print(data.shape)
 
     return data
 
@@ -23,6 +28,8 @@ def run_genetic_fuzzy_kmodes(
     mutation_prob: float,
     max_iter: int,
 ):
+    comm = MPI.COMM_WORLD
+    rank = comm.Get_rank()
 
     start_time = time.time()
     best_chromosome = genetic_fuzzy_kmodes(
@@ -34,13 +41,15 @@ def run_genetic_fuzzy_kmodes(
         mutation_prob=mutation_prob,
         max_iter=max_iter,
     )
-    print(best_chromosome)
-    print("Total time:", time.time() - start_time)
 
-    best_chromosome = cp.asnumpy(best_chromosome)
-    cluster = np.argmax(best_chromosome, axis=1)
-    rand_score = metrics.adjusted_rand_score(target, cluster)
-    print(rand_score)
+    if rank == 0:
+        print(best_chromosome)
+        print("Total time:", time.time() - start_time)
+
+        best_chromosome = cp.asnumpy(best_chromosome)
+        cluster = np.argmax(best_chromosome, axis=1)
+        rand_score = metrics.adjusted_rand_score(target, cluster)
+        print(rand_score)
 
 
 if __name__ == "__main__":
@@ -55,7 +64,7 @@ if __name__ == "__main__":
         soy_data,
         soy_target,
         num_cluster=4,
-        population_size=20,
+        population_size=24,
         alpha=1.2,
         beta=0.1,
         mutation_prob=0.01,
@@ -69,7 +78,7 @@ if __name__ == "__main__":
         metacritic_data,
         metacritic_target,
         num_cluster=7,
-        population_size=50,
+        population_size=192,
         alpha=1.2,
         beta=0.1,
         mutation_prob=0.01,
